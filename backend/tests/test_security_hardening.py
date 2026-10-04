@@ -1214,3 +1214,18 @@ def test_cors_rejects_unconfigured_origin():
     )
 
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_health_endpoint():
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_readiness_endpoint():
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["database"] == "ok"
