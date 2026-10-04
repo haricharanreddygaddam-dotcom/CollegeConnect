@@ -120,15 +120,34 @@ def get_dashboard_analytics(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    total_students = db.query(Student).count()
-    total_faculty = db.query(Faculty).count()
+    # Institutional counts use active user accounts only.
+    total_students = (
+        db.query(Student)
+        .join(User, Student.user_id == User.id)
+        .filter(User.is_active == True)
+        .count()
+    )
+    total_faculty = (
+        db.query(Faculty)
+        .join(User, Faculty.user_id == User.id)
+        .filter(User.is_active == True)
+        .count()
+    )
     total_departments = db.query(Department).count()
     total_subjects = db.query(Subject).count()
 
-    # Average attendance across entire college
+    # Average attendance across actual attendance records.
     total_records = db.query(AttendanceRecord).count()
-    present_records = db.query(AttendanceRecord).filter(AttendanceRecord.status == "Present").count()
-    avg_attendance = round((present_records / total_records * 100), 1) if total_records > 0 else 88.5
+    present_records = (
+        db.query(AttendanceRecord)
+        .filter(AttendanceRecord.status == "Present")
+        .count()
+    )
+    avg_attendance = (
+        round((present_records / total_records * 100), 1)
+        if total_records > 0
+        else 0.0
+    )
 
     pending_leaves = db.query(LeaveRequest).filter(LeaveRequest.status == "Pending").count()
     pending_certificates = db.query(CertificateRequest).filter(CertificateRequest.status == "Pending").count()
@@ -153,22 +172,73 @@ def get_dashboard_analytics(
             created_at=n.created_at
         ))
 
-    # Weekly attendance trend simulation data / breakdown
-    attendance_trend = [
-        {"day": "Mon", "rate": 89.2, "present": 218, "absent": 26},
-        {"day": "Tue", "rate": 91.5, "present": 224, "absent": 20},
-        {"day": "Wed", "rate": 87.0, "present": 213, "absent": 31},
-        {"day": "Thu", "rate": 93.4, "present": 229, "absent": 15},
-        {"day": "Fri", "rate": 86.8, "present": 212, "absent": 32},
-    ]
+    # Attendance trend from actual attendance records.
+    # Use the five most recent attendance dates represented in the database.
+    attendance_rows = (
+        db.query(
+            AttendanceRecord.date,
+            AttendanceRecord.status,
+        )
+        .order_by(AttendanceRecord.date.desc())
+        .all()
+    )
+
+    attendance_by_date = {}
+    for record_date, status in attendance_rows:
+        if record_date is None:
+            continue
+
+        bucket = attendance_by_date.setdefault(
+            record_date,
+            {"present": 0, "absent": 0},
+        )
+
+        if status == "Present":
+            bucket["present"] += 1
+        else:
+            bucket["absent"] += 1
+
+    attendance_trend = []
+    for record_date in sorted(attendance_by_date.keys(), reverse=True)[:5]:
+        bucket = attendance_by_date[record_date]
+        total_for_day = bucket["present"] + bucket["absent"]
+
+        attendance_trend.append({
+            "day": record_date.strftime("%a"),
+            "date": record_date.isoformat(),
+            "rate": round(
+                bucket["present"] / total_for_day * 100,
+                1,
+            ) if total_for_day else 0.0,
+            "present": bucket["present"],
+            "absent": bucket["absent"],
+        })
+
+    attendance_trend.reverse()
 
     # Department distribution
     depts = db.query(Department).all()
     dept_dist = []
     colors = ["#4f46e5", "#06b6d4", "#10b981", "#f59e0b", "#ec4899"]
     for idx, d in enumerate(depts):
-        stud_count = db.query(Student).filter(Student.department_id == d.id).count()
-        fac_count = db.query(Faculty).filter(Faculty.department_id == d.id).count()
+        stud_count = (
+            db.query(Student)
+            .join(User, Student.user_id == User.id)
+            .filter(
+                Student.department_id == d.id,
+                User.is_active == True,
+            )
+            .count()
+        )
+        fac_count = (
+            db.query(Faculty)
+            .join(User, Faculty.user_id == User.id)
+            .filter(
+                Faculty.department_id == d.id,
+                User.is_active == True,
+            )
+            .count()
+        )
         dept_dist.append({
             "name": d.code,
             "fullName": d.name,

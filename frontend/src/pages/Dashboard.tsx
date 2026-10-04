@@ -20,6 +20,7 @@ export const Dashboard: React.FC = () => {
   const [studentStats, setStudentStats] = useState<any[]>([]);
   const [todayClasses, setTodayClasses] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [qrModalOpen, setQrModalOpen] = useState(false);
 
@@ -45,6 +46,9 @@ export const Dashboard: React.FC = () => {
 
         const assignRes = await api.get('/assignments');
         setAssignments(assignRes.data);
+
+        const eventsRes = await api.get('/events');
+        setEvents(eventsRes.data);
       } else {
         const ttRes = await api.get(`/timetable?day_of_week=Monday`);
         setTodayClasses(ttRes.data);
@@ -60,7 +64,15 @@ export const Dashboard: React.FC = () => {
 
   const overallAttendance = studentStats.length > 0
     ? Math.round(studentStats.reduce((acc, s) => acc + s.percentage, 0) / studentStats.length)
-    : 88;
+    : 0;
+
+  const pendingStudentAssignments = user?.role === 'student'
+    ? assignments.filter((assignment) => !assignment.my_submission).length
+    : 0;
+
+  const upcomingStudentEvents = user?.role === 'student'
+    ? events.filter((event) => new Date(event.event_date) > new Date()).length
+    : 0;
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -138,7 +150,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl font-black text-slate-900">
-              {user?.role === 'student' ? `${overallAttendance}%` : stats?.total_students || 2450}
+              {user?.role === 'student' ? `${overallAttendance}%` : stats?.total_students ?? 0}
             </span>
             {user?.role === 'student' && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
@@ -149,7 +161,7 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            {user?.role === 'student' ? 'Minimum 75% required for exams' : 'Active enrolled in 4 branches'}
+            {user?.role === 'student' ? 'Minimum 75% required for exams' : `Active across ${stats?.total_departments ?? 0} departments`}
           </p>
         </div>
 
@@ -165,7 +177,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl font-black text-slate-900">
-              {user?.role === 'student' ? (user.cgpa || 8.8) : stats?.total_faculty || 156}
+              {user?.role === 'student' ? (user.cgpa ?? 0) : stats?.total_faculty ?? 0}
             </span>
             <span className="text-xs font-bold text-emerald-600 flex items-center">
               <TrendingUp className="w-3.5 h-3.5 mr-0.5" />
@@ -173,7 +185,7 @@ export const Dashboard: React.FC = () => {
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            {user?.role === 'student' ? 'Semester 1 to 4 consolidated' : 'Across 12 specialized departments'}
+            {user?.role === 'student' ? 'Semester 1 to 4 consolidated' : `Across ${stats?.total_departments ?? 0} departments`}
           </p>
         </div>
 
@@ -189,14 +201,18 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl font-black text-slate-900">
-              {user?.role === 'student' ? '2 Pending' : `${stats?.pending_leaves || 0} Pending`}
+              {user?.role === 'student'
+                ? `${pendingStudentAssignments} Pending`
+                : `${stats?.pending_leaves ?? 0} Pending`}
             </span>
             <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
               Action Req
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            {user?.role === 'student' ? 'FastAPI REST API due in 5 days' : 'Awaiting HOD verification'}
+            {user?.role === 'student'
+                ? 'Assignments awaiting submission'
+                : 'Awaiting HOD verification'}
           </p>
         </div>
 
@@ -212,14 +228,18 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl font-black text-slate-900">
-              {user?.role === 'student' ? '3 Events' : `${stats?.average_attendance || 88.5}%`}
+              {user?.role === 'student'
+                ? `${upcomingStudentEvents} Events`
+                : `${stats?.average_attendance ?? 0}%`}
             </span>
             <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
               Campus
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            {user?.role === 'student' ? 'TechFest 2026 in 12 days' : 'Weekly consolidated campus rate'}
+            {user?.role === 'student'
+                ? 'Currently scheduled campus events'
+                : 'Weekly consolidated campus rate'}
           </p>
         </div>
 
