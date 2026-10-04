@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.core.database import Base, engine, SessionLocal
+from app.core.database import SessionLocal
 from app.services.seed import seed_database
 from app.routers import (
     auth, academic, attendance, marks, timetable,
@@ -14,8 +14,8 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database tables and seed sample data
-    Base.metadata.create_all(bind=engine)
+    # Database schema is managed by Alembic before the application starts.
+    # Seed data is idempotent and only fills an empty development database.
     db = SessionLocal()
     try:
         seed_database(db)
