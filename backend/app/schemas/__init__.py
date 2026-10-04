@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import Optional, List, Any
 from datetime import datetime, date
 
@@ -32,8 +32,7 @@ class UserOut(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Department Schemas
 class DepartmentBase(BaseModel):
@@ -55,8 +54,7 @@ class DepartmentUpdate(BaseModel):
 
 class DepartmentOut(DepartmentBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Subject Schemas
 class SubjectBase(BaseModel):
@@ -82,8 +80,7 @@ class SubjectOut(SubjectBase):
     id: int
     department_name: Optional[str] = None
     faculty_name: Optional[str] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Student Schemas
 class StudentCreate(BaseModel):
@@ -122,8 +119,7 @@ class StudentOut(BaseModel):
     avatar: Optional[str] = None
     is_active: bool = True
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Faculty Schemas
 class StudentUpdate(BaseModel):
@@ -182,8 +178,7 @@ class FacultyOut(BaseModel):
     avatar: Optional[str] = None
     is_active: bool = True
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Attendance Schemas
 class AttendanceSessionCreate(BaseModel):
@@ -201,8 +196,7 @@ class AttendanceSessionOut(BaseModel):
     created_at: datetime
     expires_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AttendanceMarkBulkItem(BaseModel):
     student_id: int
@@ -228,8 +222,7 @@ class AttendanceRecordOut(BaseModel):
     method: str
     marked_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class StudentAttendanceStats(BaseModel):
     subject_id: int
@@ -270,8 +263,7 @@ class MarkOut(BaseModel):
     remarks: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Timetable Schemas
 class TimetableCreate(BaseModel):
@@ -299,8 +291,7 @@ class TimetableOut(BaseModel):
     faculty_name: Optional[str] = None
     room_number: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Assignment Schemas
 class AssignmentCreate(BaseModel):
@@ -326,8 +317,7 @@ class AssignmentOut(BaseModel):
     submissions_count: Optional[int] = 0
     my_submission: Optional[Any] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class SubmissionCreate(BaseModel):
     assignment_id: int
@@ -353,8 +343,7 @@ class SubmissionOut(BaseModel):
     max_marks: Optional[float] = 20.0
     feedback: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Notice Schemas
 class NoticeCreate(BaseModel):
@@ -379,8 +368,7 @@ class NoticeOut(BaseModel):
     author_name: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Event Schemas
 class EventCreate(BaseModel):
@@ -409,8 +397,7 @@ class EventOut(BaseModel):
     is_registered: bool = False
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Leave Schemas
 class LeaveRequestCreate(BaseModel):
@@ -439,8 +426,7 @@ class LeaveRequestOut(BaseModel):
     reviewer_name: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Certificate Schemas
 class CertificateRequestCreate(BaseModel):
@@ -467,8 +453,7 @@ class CertificateOut(BaseModel):
     issued_date: Optional[date] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Feedback Schemas
 class FeedbackCreate(BaseModel):
@@ -489,8 +474,7 @@ class FeedbackOut(BaseModel):
     is_anonymous: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Notification Schemas
 class NotificationOut(BaseModel):
@@ -502,8 +486,7 @@ class NotificationOut(BaseModel):
     is_read: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Dashboard Stats Schemas
 class DashboardStatsOut(BaseModel):
