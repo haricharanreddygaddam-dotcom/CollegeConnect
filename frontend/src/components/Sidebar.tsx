@@ -18,7 +18,8 @@ import {
   QrCode,
   Sparkles,
   BarChart3,
-  UserCheck
+  UserCheck,
+  Settings2
 } from 'lucide-react';
 
 interface NavItem {
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { label: 'Faculty Directory', path: '/directory/faculty', icon: UserCheck, roles: ['hod', 'admin'] },
   { label: 'Departments', path: '/directory/departments', icon: Building2, roles: ['admin', 'hod'] },
   { label: 'Subjects & Curriculum', path: '/directory/subjects', icon: BookOpen, roles: ['admin', 'hod'] },
+  { label: 'Admin Management', path: '/admin/management', icon: Settings2, roles: ['admin'] },
 ];
 
 export const Sidebar: React.FC = () => {

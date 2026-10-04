@@ -46,6 +46,13 @@ class DepartmentBase(BaseModel):
 class DepartmentCreate(DepartmentBase):
     pass
 
+class DepartmentUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    building: Optional[str] = None
+    hod_id: Optional[int] = None
+
 class DepartmentOut(DepartmentBase):
     id: int
     class Config:
@@ -62,6 +69,14 @@ class SubjectBase(BaseModel):
 
 class SubjectCreate(SubjectBase):
     pass
+
+class SubjectUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    credits: Optional[int] = None
+    department_id: Optional[int] = None
+    semester: Optional[int] = None
+    faculty_id: Optional[int] = None
 
 class SubjectOut(SubjectBase):
     id: int
@@ -105,11 +120,28 @@ class StudentOut(BaseModel):
     admission_year: int
     cgpa: float
     avatar: Optional[str] = None
+    is_active: bool = True
 
     class Config:
         from_attributes = True
 
 # Faculty Schemas
+class StudentUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    roll_number: Optional[str] = None
+    department_id: Optional[int] = None
+    year: Optional[int] = None
+    semester: Optional[int] = None
+    section: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    parent_name: Optional[str] = None
+    parent_phone: Optional[str] = None
+    admission_year: Optional[int] = None
+    cgpa: Optional[float] = None
+
 class FacultyCreate(BaseModel):
     name: str
     email: EmailStr
@@ -121,6 +153,18 @@ class FacultyCreate(BaseModel):
     phone: Optional[str] = None
     office_room: Optional[str] = None
     qualification: str = "M.Tech / Ph.D"
+
+class FacultyUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    employee_id: Optional[str] = None
+    department_id: Optional[int] = None
+    designation: Optional[str] = None
+    experience_years: Optional[int] = None
+    phone: Optional[str] = None
+    office_room: Optional[str] = None
+    qualification: Optional[str] = None
 
 class FacultyOut(BaseModel):
     id: int
@@ -136,6 +180,7 @@ class FacultyOut(BaseModel):
     office_room: Optional[str] = None
     qualification: str
     avatar: Optional[str] = None
+    is_active: bool = True
 
     class Config:
         from_attributes = True

@@ -16,6 +16,7 @@ import { CertificatesPage } from './pages/Certificates';
 import { VerifyCertificatePage } from './pages/VerifyCertificate';
 import { FeedbackPage } from './pages/FeedbackPage';
 import { DirectoriesPage } from './pages/Directories';
+import { AdminManagementPage } from './pages/AdminManagement';
 import { LoginPage } from './pages/Login';
 
 const ProtectedLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -68,6 +69,7 @@ export const App: React.FC = () => {
           <Route path="/certificates" element={<ProtectedLayout><CertificatesPage /></ProtectedLayout>} />
           <Route path="/feedback" element={<ProtectedLayout><FeedbackPage /></ProtectedLayout>} />
           <Route path="/directory/:type" element={<ProtectedLayout><DirectoriesPage /></ProtectedLayout>} />
+          <Route path="/admin/management" element={<ProtectedLayout><AdminManagementPage /></ProtectedLayout>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
