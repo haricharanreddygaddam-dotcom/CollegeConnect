@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # Always override this in non-demo deployments via .env/environment.
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = "campusconnect-development-secret-key-2026"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
