@@ -1,8 +1,9 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
 from app.core.config import settings
 from app.core.database import SessionLocal
@@ -30,19 +31,44 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware.
+# Keep the browser trust boundary limited to the configured frontend origins.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
-# Mount static uploads directory
-uploads_dir = settings.UPLOAD_DIR
-os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/api/v1/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+
+    # Prevent MIME-type sniffing.
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Prevent the API from being embedded in frames.
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # Limit referrer information sent to other origins.
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Restrict browser capabilities that are not required by the API.
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), "
+        "payment=(), usb=()"
+    )
+
+    # HSTS is only appropriate when the deployed API is HTTPS-only.
+    if settings.ENABLE_HSTS and request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+
+    return response
+
 
 # Include Routers
 api_v1 = settings.API_V1_STR
@@ -57,6 +83,16 @@ app.include_router(events.router, prefix=api_v1)
 app.include_router(leaves.router, prefix=api_v1)
 app.include_router(certificates.router, prefix=api_v1)
 app.include_router(misc.router, prefix=api_v1)
+
+# Expose only certificate QR-code images publicly.
+# Uploaded documents are served through the authenticated API endpoint.
+qrcodes_dir = os.path.join(settings.UPLOAD_DIR, "qrcodes")
+os.makedirs(qrcodes_dir, exist_ok=True)
+app.mount(
+    "/api/v1/uploads/qrcodes",
+    StaticFiles(directory=qrcodes_dir),
+    name="qrcodes",
+)
 
 @app.get("/")
 def root():

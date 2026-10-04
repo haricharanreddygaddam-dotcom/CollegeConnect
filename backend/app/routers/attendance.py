@@ -6,14 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models import (
-    AttendanceRecord, AttendanceSession, Subject, Student, User
+    AttendanceRecord, AttendanceSession, Subject, Student, Faculty, User
 )
 from app.schemas import (
     AttendanceSessionCreate, AttendanceSessionOut,
     AttendanceMarkBulkRequest, AttendanceScanQRRequest,
     AttendanceRecordOut, StudentAttendanceStats
 )
-from app.dependencies import get_current_user, require_roles
+from app.dependencies import get_current_user, require_roles, authorize_subject_access
 
 router = APIRouter(prefix="/attendance", tags=["Attendance Management"])
 
@@ -27,6 +27,8 @@ def create_attendance_session(
     subject = db.query(Subject).filter(Subject.id == session_in.subject_id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
+
+    authorize_subject_access(db, subject, user)
 
     # Deactivate existing active sessions for this subject today
     db.query(AttendanceSession).filter(
@@ -61,7 +63,17 @@ def create_attendance_session(
     )
 
 @router.get("/sessions/active/{subject_id}", response_model=Optional[AttendanceSessionOut])
-def get_active_session(subject_id: int, db: Session = Depends(get_db)):
+def get_active_session(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(["faculty", "hod", "admin"])),
+):
+    subject = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    authorize_subject_access(db, subject, user)
+
     session = db.query(AttendanceSession).filter(
         AttendanceSession.subject_id == subject_id,
         AttendanceSession.is_active == True,
@@ -146,7 +158,29 @@ def mark_attendance_bulk(
     user: User = Depends(require_roles(["faculty", "hod", "admin"]))
 ):
     """Faculty takes attendance manually for a roster of students."""
-    # Delete existing records for this subject and date to allow clean re-marking / editing
+    subject = db.query(Subject).filter(Subject.id == req.subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    authorize_subject_access(db, subject, user)
+
+    # Validate every student against the subject's academic scope before
+    # modifying any existing attendance records.
+    for item in req.records:
+        student = db.query(Student).filter(Student.id == item.student_id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        if (
+            student.department_id != subject.department_id
+            or student.semester != subject.semester
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Student is outside this subject's academic scope",
+            )
+
+    # Delete existing records only after authorization and validation succeed.
     db.query(AttendanceRecord).filter(
         AttendanceRecord.subject_id == req.subject_id,
         AttendanceRecord.date == req.date
@@ -184,13 +218,38 @@ def get_attendance_records(
 
     if user.role == "student":
         stud = db.query(Student).filter(Student.user_id == user.id).first()
-        if stud:
-            query = query.filter(AttendanceRecord.student_id == stud.id)
-    elif student_id:
-        query = query.filter(AttendanceRecord.student_id == student_id)
+        if not stud:
+            raise HTTPException(status_code=404, detail="Student profile not found")
 
-    if subject_id:
-        query = query.filter(AttendanceRecord.subject_id == subject_id)
+        query = query.filter(AttendanceRecord.student_id == stud.id)
+
+    elif user.role in {"faculty", "hod"}:
+        if subject_id:
+            subject = db.query(Subject).filter(Subject.id == subject_id).first()
+            if not subject:
+                raise HTTPException(status_code=404, detail="Subject not found")
+
+            authorize_subject_access(db, subject, user)
+            query = query.filter(AttendanceRecord.subject_id == subject_id)
+        else:
+            faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+            if not faculty:
+                raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+            if user.role == "faculty":
+                query = query.filter(Subject.faculty_id == faculty.id)
+            else:
+                query = query.filter(Subject.department_id == faculty.department_id)
+
+        if student_id:
+            query = query.filter(AttendanceRecord.student_id == student_id)
+
+    else:
+        if student_id:
+            query = query.filter(AttendanceRecord.student_id == student_id)
+
+        if subject_id:
+            query = query.filter(AttendanceRecord.subject_id == subject_id)
     if date_val:
         query = query.filter(AttendanceRecord.date == date_val)
 
@@ -221,10 +280,78 @@ def get_student_attendance_stats(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    subjects = db.query(Subject).filter(
-        Subject.department_id == student.department_id,
-        Subject.semester == student.semester
-    ).all()
+    if user.role == "student":
+        own_student = db.query(Student).filter(
+            Student.user_id == user.id
+        ).first()
+
+        if not own_student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student profile not found",
+            )
+
+        if own_student.id != student.id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to view this student's attendance",
+            )
+
+        subjects = db.query(Subject).filter(
+            Subject.department_id == student.department_id,
+            Subject.semester == student.semester,
+        ).all()
+
+    elif user.role == "faculty":
+        faculty = db.query(Faculty).filter(
+            Faculty.user_id == user.id
+        ).first()
+
+        if not faculty:
+            raise HTTPException(
+                status_code=404,
+                detail="Faculty profile not found",
+            )
+
+        if student.department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to view this student's attendance",
+            )
+
+        subjects = db.query(Subject).filter(
+            Subject.faculty_id == faculty.id,
+            Subject.department_id == student.department_id,
+            Subject.semester == student.semester,
+        ).all()
+
+    elif user.role == "hod":
+        faculty = db.query(Faculty).filter(
+            Faculty.user_id == user.id
+        ).first()
+
+        if not faculty:
+            raise HTTPException(
+                status_code=404,
+                detail="Faculty profile not found",
+            )
+
+        if student.department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to view this student's attendance",
+            )
+
+        subjects = db.query(Subject).filter(
+            Subject.department_id == faculty.department_id,
+            Subject.semester == student.semester,
+        ).all()
+
+    else:
+        subjects = db.query(Subject).filter(
+            Subject.department_id == student.department_id,
+            Subject.semester == student.semester,
+        ).all()
 
     stats = []
     for subj in subjects:
@@ -240,6 +367,7 @@ def get_student_attendance_stats(
         ).count()
 
         percentage = round((attended / total * 100), 1) if total > 0 else 100.0
+
         stats.append(StudentAttendanceStats(
             subject_id=subj.id,
             subject_name=subj.name,

@@ -13,13 +13,20 @@ vi.mock('../api/client', () => ({
 }))
 
 function AuthProbe() {
-  const { user, token, loading, logout } = useAuth()
+  const { user, token, loading, login, logout } = useAuth()
 
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="user">{user?.email ?? 'no-user'}</span>
       <span data-testid="token">{token ?? 'no-token'}</span>
+      <button
+        onClick={() =>
+          login('admin@campusconnect.edu', 'AdminPassword@123')
+        }
+      >
+        Login
+      </button>
       <button onClick={logout}>Logout</button>
     </div>
   )
@@ -36,21 +43,21 @@ describe('CampusConnect authentication provider', () => {
     vi.clearAllMocks()
   })
 
-  it('logs in, stores the token, and loads the authenticated profile', async () => {
-    apiMock.get
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({
-        data: {
-          id: 1,
-          name: 'Admin User',
-          email: 'admin@campusconnect.edu',
-          role: 'admin',
-        },
-      })
+  it('logs in explicitly, stores the token, and loads the authenticated profile', async () => {
+    apiMock.get.mockResolvedValueOnce({ data: [] })
 
     apiMock.post.mockResolvedValueOnce({
       data: {
         access_token: 'test-access-token',
+      },
+    })
+
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        id: 1,
+        name: 'Admin User',
+        email: 'admin@campusconnect.edu',
+        role: 'admin',
       },
     })
 
@@ -59,6 +66,10 @@ describe('CampusConnect authentication provider', () => {
         <AuthProbe />
       </AuthProvider>,
     )
+
+    expect(screen.getByTestId('user')).toHaveTextContent('no-user')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('user')).toHaveTextContent(
@@ -135,5 +146,31 @@ describe('CampusConnect authentication provider', () => {
     expect(localStorage.getItem('cc_token')).toBeNull()
     expect(screen.getByTestId('user')).toHaveTextContent('no-user')
     expect(screen.getByTestId('token')).toHaveTextContent('no-token')
+  })
+})
+
+describe('CampusConnect authentication startup security', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    apiMock.get.mockReset()
+    apiMock.post.mockReset()
+  })
+
+  it('does not automatically authenticate when no token exists', async () => {
+    apiMock.get.mockResolvedValueOnce({ data: [] })
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false')
+    })
+
+    expect(screen.getByTestId('user')).toHaveTextContent('no-user')
+    expect(screen.getByTestId('token')).toHaveTextContent('no-token')
+    expect(apiMock.post).not.toHaveBeenCalled()
   })
 })

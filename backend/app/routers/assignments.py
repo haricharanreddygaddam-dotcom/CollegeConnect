@@ -9,7 +9,7 @@ from app.schemas import (
     AssignmentCreate, AssignmentOut,
     SubmissionCreate, SubmissionGrade, SubmissionOut
 )
-from app.dependencies import get_current_user, require_roles
+from app.dependencies import get_current_user, require_roles, authorize_subject_access
 
 router = APIRouter(prefix="/assignments", tags=["Assignment Management"])
 
@@ -21,7 +21,24 @@ def get_assignments(
 ):
     query = db.query(Assignment).join(Subject)
     if subject_id:
+        subject = db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            raise HTTPException(status_code=404, detail="Subject not found")
+
+        if user.role in ["faculty", "hod", "admin"]:
+            authorize_subject_access(db, subject, user)
+
         query = query.filter(Assignment.subject_id == subject_id)
+
+    if user.role in ["faculty", "hod"]:
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if user.role == "faculty":
+            query = query.filter(Subject.faculty_id == faculty.id)
+        else:
+            query = query.filter(Subject.department_id == faculty.department_id)
 
     student = None
     if user.role == "student":
@@ -78,6 +95,8 @@ def create_assignment(
     subject = db.query(Subject).filter(Subject.id == assign_in.subject_id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
+
+    authorize_subject_access(db, subject, user)
 
     assignment = Assignment(
         subject_id=assign_in.subject_id,
@@ -175,6 +194,8 @@ def get_assignment_submissions(
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
+    authorize_subject_access(db, assignment.subject, user)
+
     submissions = db.query(AssignmentSubmission).filter(
         AssignmentSubmission.assignment_id == assignment_id
     ).all()
@@ -208,6 +229,8 @@ def grade_submission(
     sub = db.query(AssignmentSubmission).filter(AssignmentSubmission.id == submission_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
+
+    authorize_subject_access(db, sub.assignment.subject, user)
 
     sub.marks_awarded = grade_in.marks_awarded
     sub.feedback = grade_in.feedback

@@ -28,8 +28,16 @@ def test_admin_login():
     assert data["user"]["role"] == "admin"
 
 def test_demo_users_endpoint():
-    response = client.get("/api/v1/auth/demo-users")
-    assert response.status_code == 200
+    from app.core.config import settings
+
+    original_value = settings.ENABLE_DEMO_ACCOUNTS
+    settings.ENABLE_DEMO_ACCOUNTS = True
+
+    try:
+        response = client.get("/api/v1/auth/demo-users")
+        assert response.status_code == 200
+    finally:
+        settings.ENABLE_DEMO_ACCOUNTS = original_value
     demo_users = response.json()
     assert len(demo_users) >= 4
 

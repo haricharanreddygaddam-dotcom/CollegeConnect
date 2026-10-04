@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import decode_access_token
-from app.models import User, Student, Faculty
+from app.models import User, Student, Faculty, Subject
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
@@ -24,7 +24,12 @@ def get_current_user(
     if user_id is None:
         raise credentials_exception
     
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == user_id_int).first()
     if user is None or not user.is_active:
         raise credentials_exception
     return user
@@ -56,3 +61,34 @@ def get_current_faculty(
     if not faculty and current_user.role in ["faculty", "hod"]:
         raise HTTPException(status_code=404, detail="Faculty profile not found")
     return faculty
+
+def authorize_subject_access(
+    db: Session,
+    subject: Subject,
+    user: User,
+) -> Subject:
+    """Enforce faculty subject ownership and HOD department scope."""
+    if user.role == "admin":
+        return subject
+
+    faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+    if not faculty:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Faculty profile not found",
+        )
+
+    if user.role == "faculty":
+        if subject.faculty_id != faculty.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized for this subject",
+            )
+    elif user.role == "hod":
+        if subject.department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized for this department",
+            )
+
+    return subject

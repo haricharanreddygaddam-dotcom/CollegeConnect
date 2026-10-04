@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models import CertificateRequest, Student, User
+from app.models import CertificateRequest, Student, User, Faculty
 from app.schemas import (
     CertificateRequestCreate, CertificateReview, CertificateOut
 )
@@ -23,8 +23,26 @@ def get_certificate_requests(
 
     if user.role == "student":
         stud = db.query(Student).filter(Student.user_id == user.id).first()
-        if stud:
-            query = query.filter(CertificateRequest.student_id == stud.id)
+        if not stud:
+            raise HTTPException(
+                status_code=404,
+                detail="Student profile not found",
+            )
+        query = query.filter(CertificateRequest.student_id == stud.id)
+
+    elif user.role == "hod":
+        faculty = db.query(Faculty).filter(
+            Faculty.user_id == user.id
+        ).first()
+        if not faculty:
+            raise HTTPException(
+                status_code=404,
+                detail="Faculty profile not found",
+            )
+
+        query = query.filter(
+            Student.department_id == faculty.department_id
+        )
 
     if status_filter and status_filter != "All":
         query = query.filter(CertificateRequest.status == status_filter)
@@ -92,9 +110,25 @@ def review_certificate(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(["admin", "hod"]))
 ):
-    cert = db.query(CertificateRequest).filter(CertificateRequest.id == cert_id).first()
+    cert = (
+        db.query(CertificateRequest)
+        .join(Student, CertificateRequest.student_id == Student.id)
+        .filter(CertificateRequest.id == cert_id)
+        .first()
+    )
     if not cert:
         raise HTTPException(status_code=404, detail="Certificate request not found")
+
+    if user.role == "hod":
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if cert.student.department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized for this department",
+            )
 
     cert.status = review_in.status
     cert.approved_by = user.id

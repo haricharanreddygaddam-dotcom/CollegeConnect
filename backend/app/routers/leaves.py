@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models import LeaveRequest, Student, User
+from app.models import LeaveRequest, Student, User, Faculty
 from app.schemas import (
     LeaveRequestCreate, LeaveRequestReview, LeaveRequestOut
 )
@@ -22,9 +22,14 @@ def get_leave_requests(
         stud = db.query(Student).filter(Student.user_id == user.id).first()
         if stud:
             query = query.filter(LeaveRequest.student_id == stud.id)
-    elif user.role == "faculty":
-        # Faculty sees leaves for their department
-        pass
+    elif user.role in {"faculty", "hod"}:
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        query = query.filter(
+            Student.department_id == faculty.department_id
+        )
 
     if status_filter and status_filter != "All":
         query = query.filter(LeaveRequest.status == status_filter)
@@ -98,9 +103,25 @@ def review_leave(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(["faculty", "hod", "admin"]))
 ):
-    leave = db.query(LeaveRequest).filter(LeaveRequest.id == leave_id).first()
+    leave = (
+        db.query(LeaveRequest)
+        .join(Student, LeaveRequest.student_id == Student.id)
+        .filter(LeaveRequest.id == leave_id)
+        .first()
+    )
     if not leave:
         raise HTTPException(status_code=404, detail="Leave request not found")
+
+    if user.role in {"faculty", "hod"}:
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if leave.student.department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized for this department",
+            )
 
     leave.status = review_in.status
     leave.reviewer_remarks = review_in.reviewer_remarks

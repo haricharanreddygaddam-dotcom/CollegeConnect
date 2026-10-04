@@ -1,8 +1,10 @@
+from pathlib import Path
 import os
 import shutil
 import uuid
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.core.database import get_db
@@ -60,6 +62,21 @@ def get_all_feedback(
     user: User = Depends(require_roles(["admin", "hod", "faculty"]))
 ):
     query = db.query(Feedback).join(Student).join(User, Student.user_id == User.id)
+
+    if user.role in {"faculty", "hod"}:
+        faculty = db.query(Faculty).filter(
+            Faculty.user_id == user.id
+        ).first()
+        if not faculty:
+            raise HTTPException(
+                status_code=404,
+                detail="Faculty profile not found",
+            )
+
+        query = query.filter(
+            Student.department_id == faculty.department_id
+        )
+
     if category and category != "All":
         query = query.filter(Feedback.category == category)
 
@@ -265,25 +282,81 @@ def get_dashboard_analytics(
 # ==================== FILE UPLOADS ====================
 @router.post("/uploads/file")
 async def upload_file(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    user: User = Depends(require_roles(["student", "faculty", "hod", "admin"])),
 ):
-    """Allows uploading assignment submissions, medical certificates, event flyers, etc."""
-    allowed_extensions = {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".zip", ".txt"}
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed_extensions:
+    """Upload an approved document for authenticated CampusConnect users."""
+    max_file_size = 10 * 1024 * 1024
+
+    allowed_types = {
+        ".pdf": {"application/pdf"},
+        ".png": {"image/png"},
+        ".jpg": {"image/jpeg"},
+        ".jpeg": {"image/jpeg"},
+        ".docx": {
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        },
+        ".zip": {"application/zip", "application/x-zip-compressed"},
+        ".txt": {"text/plain"},
+    }
+
+    original_filename = file.filename or ""
+    ext = os.path.splitext(original_filename)[1].lower()
+
+    if ext not in allowed_types:
         raise HTTPException(status_code=400, detail="Unsupported file format")
+
+    if file.content_type not in allowed_types[ext]:
+        raise HTTPException(status_code=400, detail="Invalid file content type")
 
     doc_dir = os.path.join(settings.UPLOAD_DIR, "docs")
     os.makedirs(doc_dir, exist_ok=True)
-    
-    unique_filename = f"{uuid.uuid4().hex[:12]}_{file.filename.replace(' ', '_')}"
+
+    unique_filename = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(doc_dir, unique_filename)
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    size = 0
+
+    try:
+        with open(file_path, "wb") as buffer:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+
+                if size > max_file_size:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="File exceeds the 10 MB size limit",
+                    )
+
+                buffer.write(chunk)
+    except HTTPException:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
 
     return {
-        "filename": file.filename,
+        "filename": original_filename,
         "url": f"/api/v1/uploads/docs/{unique_filename}",
-        "size": os.path.getsize(file_path)
+        "size": size,
     }
+
+
+@router.get("/uploads/docs/{filename}")
+def download_document(
+    filename: str,
+    user: User = Depends(require_roles(["student", "faculty", "hod", "admin"])),
+):
+    """Serve uploaded documents only to authenticated CampusConnect users."""
+    if os.path.basename(filename) != filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    doc_dir = Path(settings.UPLOAD_DIR) / "docs"
+    file_path = doc_dir / filename
+
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+    )

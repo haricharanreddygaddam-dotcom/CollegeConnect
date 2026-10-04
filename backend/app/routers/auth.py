@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.models import User, Student, Faculty, Department
 from app.schemas import Token, LoginRequest, UserCreate, UserOut
@@ -37,6 +38,8 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Account is deactivated")
     access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
     return {
         "access_token": access_token,
@@ -98,7 +101,13 @@ def get_current_user_profile(
 
 @router.get("/demo-users", response_model=list)
 def get_demo_accounts():
-    """Provides demo credentials for 1-click interactive login testing during presentations."""
+    """Provides demo credentials only when explicitly enabled for presentations."""
+    if not settings.ENABLE_DEMO_ACCOUNTS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Demo accounts are disabled",
+        )
+
     return [
         {
             "role": "admin",

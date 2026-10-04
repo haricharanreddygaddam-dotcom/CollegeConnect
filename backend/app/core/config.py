@@ -15,12 +15,19 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    # Demo credentials are disabled by default.
+    # Enable explicitly for local presentations only.
+    ENABLE_DEMO_ACCOUNTS: bool = False
+
     DATABASE_URL: str = f"sqlite:///{DEFAULT_DATABASE_PATH}"
     UPLOAD_DIR: str = str(BASE_DIR / "app" / "uploads")
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+
+    # Enable only when the API is deployed behind HTTPS.
+    ENABLE_HSTS: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

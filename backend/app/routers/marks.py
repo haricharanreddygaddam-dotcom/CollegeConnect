@@ -2,9 +2,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models import Mark, Subject, Student, User
+from app.models import Mark, Subject, Student, Faculty, User
 from app.schemas import MarkBulkCreate, MarkOut
-from app.dependencies import get_current_user, require_roles
+from app.dependencies import get_current_user, require_roles, authorize_subject_access
 
 router = APIRouter(prefix="/marks", tags=["Marks & Examinations"])
 
@@ -18,8 +18,26 @@ def enter_marks_bulk(
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
+    authorize_subject_access(db, subject, user)
+
     created_marks = []
     for entry in req.entries:
+        student = db.query(Student).filter(Student.id == entry.student_id).first()
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Student {entry.student_id} not found",
+            )
+
+        if (
+            student.department_id != subject.department_id
+            or student.semester != req.semester
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Student is not eligible for marks in this subject",
+            )
+
         # Check if record exists for this exam type and student
         mark_record = db.query(Mark).filter(
             Mark.student_id == entry.student_id,
@@ -86,6 +104,27 @@ def get_marks(
         stud = db.query(Student).filter(Student.user_id == user.id).first()
         if stud:
             query = query.filter(Mark.student_id == stud.id)
+    elif user.role in ["faculty", "hod"]:
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if subject_id:
+            requested_subject = db.query(Subject).filter(
+                Subject.id == subject_id
+            ).first()
+            if not requested_subject:
+                raise HTTPException(status_code=404, detail="Subject not found")
+            authorize_subject_access(db, requested_subject, user)
+
+        if user.role == "faculty":
+            query = query.filter(Subject.faculty_id == faculty.id)
+        else:
+            query = query.filter(Subject.department_id == faculty.department_id)
+
+        if student_id:
+            query = query.filter(Mark.student_id == student_id)
+
     elif student_id:
         query = query.filter(Mark.student_id == student_id)
 

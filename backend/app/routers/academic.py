@@ -38,15 +38,66 @@ def get_subjects(
     department_id: Optional[int] = None,
     semester: Optional[int] = None,
     faculty_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(["admin", "hod", "faculty"])),
 ):
     query = db.query(Subject)
-    if department_id:
-        query = query.filter(Subject.department_id == department_id)
-    if semester:
-        query = query.filter(Subject.semester == semester)
-    if faculty_id:
-        query = query.filter(Subject.faculty_id == faculty_id)
+
+    if user.role == "admin":
+        if department_id:
+            query = query.filter(Subject.department_id == department_id)
+        if semester:
+            query = query.filter(Subject.semester == semester)
+        if faculty_id:
+            query = query.filter(Subject.faculty_id == faculty_id)
+
+    else:
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if user.role == "hod":
+            query = query.filter(Subject.department_id == faculty.department_id)
+
+            if department_id and department_id != faculty.department_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not authorized for this department",
+                )
+
+            if faculty_id:
+                requested_faculty = (
+                    db.query(Faculty)
+                    .filter(Faculty.id == faculty_id)
+                    .first()
+                )
+                if not requested_faculty:
+                    raise HTTPException(status_code=404, detail="Faculty not found")
+                if requested_faculty.department_id != faculty.department_id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="You are not authorized for this department",
+                    )
+                query = query.filter(Subject.faculty_id == faculty_id)
+
+        else:
+            # Faculty can only see subjects assigned to themselves.
+            query = query.filter(Subject.faculty_id == faculty.id)
+
+            if faculty_id and faculty_id != faculty.id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not authorized for this faculty member",
+                )
+
+            if department_id and department_id != faculty.department_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not authorized for this department",
+                )
+
+        if semester:
+            query = query.filter(Subject.semester == semester)
     
     subjects = query.all()
     results = []
@@ -71,6 +122,43 @@ def create_subject(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(["admin", "hod"]))
 ):
+    department = (
+        db.query(Department)
+        .filter(Department.id == subj_in.department_id)
+        .first()
+    )
+    if not department:
+        raise HTTPException(status_code=400, detail="Department not found")
+
+    if user.role == "hod":
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if subj_in.department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized for this department",
+            )
+
+        if subj_in.faculty_id is not None:
+            assigned_faculty = (
+                db.query(Faculty)
+                .filter(Faculty.id == subj_in.faculty_id)
+                .first()
+            )
+            if not assigned_faculty:
+                raise HTTPException(status_code=400, detail="Faculty not found")
+            if assigned_faculty.department_id != faculty.department_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not authorized for this faculty member",
+                )
+
+    elif subj_in.faculty_id is not None:
+        if not db.query(Faculty).filter(Faculty.id == subj_in.faculty_id).first():
+            raise HTTPException(status_code=400, detail="Faculty not found")
+
     subj = Subject(**subj_in.dict())
     db.add(subj)
     db.commit()
@@ -97,8 +185,23 @@ def get_students(
     user: User = Depends(require_roles(["admin", "hod", "faculty"]))
 ):
     query = db.query(Student).join(User)
-    if department_id:
-        query = query.filter(Student.department_id == department_id)
+
+    if user.role == "admin":
+        if department_id:
+            query = query.filter(Student.department_id == department_id)
+
+    else:
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if department_id and department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized for this department",
+            )
+
+        query = query.filter(Student.department_id == faculty.department_id)
     if semester:
         query = query.filter(Student.semester == semester)
     if section:
@@ -135,6 +238,25 @@ def create_student(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(["admin", "hod"]))
 ):
+    department = (
+        db.query(Department)
+        .filter(Department.id == stud_in.department_id)
+        .first()
+    )
+    if not department:
+        raise HTTPException(status_code=400, detail="Department not found")
+
+    if user.role == "hod":
+        faculty = db.query(Faculty).filter(Faculty.user_id == user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if stud_in.department_id != faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized for this department",
+            )
+
     existing_user = db.query(User).filter(User.email == stud_in.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -193,11 +315,33 @@ def create_student(
 @router.get("/faculty", response_model=List[FacultyOut])
 def get_faculty_members(
     department_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(["admin", "hod", "faculty"])),
 ):
     query = db.query(Faculty).join(User)
-    if department_id:
-        query = query.filter(Faculty.department_id == department_id)
+
+    if user.role == "admin":
+        if department_id:
+            query = query.filter(Faculty.department_id == department_id)
+
+    else:
+        current_faculty = (
+            db.query(Faculty)
+            .filter(Faculty.user_id == user.id)
+            .first()
+        )
+        if not current_faculty:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+        if department_id and department_id != current_faculty.department_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized for this department",
+            )
+
+        query = query.filter(
+            Faculty.department_id == current_faculty.department_id
+        )
     
     faculty_list = query.all()
     results = []
