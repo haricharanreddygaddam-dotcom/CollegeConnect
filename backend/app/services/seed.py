@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, date, timedelta
+from app.core.time import utc_now_naive
 from sqlalchemy.orm import Session
 from app.core.database import Base, engine, SessionLocal
 from app.core.security import get_password_hash
@@ -357,7 +358,7 @@ def seed_database(db: Session):
         title="REST API Architecture & Microservices with FastAPI",
         description="Design and build a modular REST API with JWT authentication, relational models in SQLAlchemy, and interactive OpenAPI documentation.",
         max_marks=20.0,
-        due_date=datetime.utcnow() + timedelta(days=5),
+        due_date=utc_now_naive() + timedelta(days=5),
         created_by=f1_user.id
     )
     a2 = Assignment(
@@ -365,7 +366,7 @@ def seed_database(db: Session):
         title="Database Normalization (BCNF) & Complex Query Optimization",
         description="Solve ER diagram case studies, reduce relations to BCNF, and write optimized SQL queries utilizing B-tree indexing strategies.",
         max_marks=20.0,
-        due_date=datetime.utcnow() + timedelta(days=3),
+        due_date=utc_now_naive() + timedelta(days=3),
         created_by=f2_user.id
     )
     a3 = Assignment(
@@ -373,7 +374,7 @@ def seed_database(db: Session):
         title="Convolutional Neural Network for Medical Image Classification",
         description="Implement a PyTorch CNN model to classify X-Ray scans with >92% validation accuracy and plot confusion matrix metrics.",
         max_marks=25.0,
-        due_date=datetime.utcnow() + timedelta(days=8),
+        due_date=utc_now_naive() + timedelta(days=8),
         created_by=f1_user.id
     )
     db.add_all([a1, a2, a3])
@@ -385,7 +386,7 @@ def seed_database(db: Session):
         student_id=main_student.id,
         submission_text="Completed FastAPI RESTful services implementation with Pydantic v2 schemas and unit tests. GitHub repo: https://github.com/haricharan/fastapi-campus-api",
         status="Submitted",
-        submitted_at=datetime.utcnow() - timedelta(hours=6)
+        submitted_at=utc_now_naive() - timedelta(hours=6)
     )
     subm2 = AssignmentSubmission(
         assignment_id=a2.id,
@@ -395,7 +396,7 @@ def seed_database(db: Session):
         marks_awarded=19.5,
         feedback="Outstanding schema diagram and query plan analysis! Keep it up.",
         graded_by=f2_user.id,
-        submitted_at=datetime.utcnow() - timedelta(days=2)
+        submitted_at=utc_now_naive() - timedelta(days=2)
     )
     db.add_all([subm1, subm2])
     db.commit()
@@ -444,7 +445,7 @@ def seed_database(db: Session):
     e1 = Event(
         title="CAMPUS-TECHFEST 2026: National Tech Symposium",
         description="The biggest annual technology festival of our institution featuring Hackathons, Robotics Arenas, Coding Challenges, Gaming Tournaments, and Startup Pitching.",
-        event_date=datetime.utcnow() + timedelta(days=12),
+        event_date=utc_now_naive() + timedelta(days=12),
         venue="Block A & Central Auditorium",
         category="Technical",
         max_participants=500,
@@ -454,7 +455,7 @@ def seed_database(db: Session):
     e2 = Event(
         title="Google Cloud & AI Developer Summit",
         description="Hands-on workshop on training, tuning, and deploying AI models on cloud infrastructure with live credit vouchers.",
-        event_date=datetime.utcnow() + timedelta(days=6),
+        event_date=utc_now_naive() + timedelta(days=6),
         venue="Turing Hall - 402",
         category="Workshop",
         max_participants=120,
@@ -464,7 +465,7 @@ def seed_database(db: Session):
     e3 = Event(
         title="Inter-Department Annual Cricket Championship",
         description="Cheer for your department in the thrilling 20-over league stage matches on the university ground.",
-        event_date=datetime.utcnow() + timedelta(days=18),
+        event_date=utc_now_naive() + timedelta(days=18),
         venue="Campus Main Sports Ground",
         category="Sports",
         max_participants=250,

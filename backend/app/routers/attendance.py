@@ -1,5 +1,6 @@
 import secrets
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
+from app.core.time import utc_now_naive
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -34,7 +35,7 @@ def create_attendance_session(
     ).update({"is_active": False})
 
     token = secrets.token_urlsafe(16)
-    expires_at = datetime.utcnow() + timedelta(minutes=session_in.expires_in_minutes)
+    expires_at = utc_now_naive() + timedelta(minutes=session_in.expires_in_minutes)
 
     session = AttendanceSession(
         subject_id=session_in.subject_id,
@@ -64,7 +65,7 @@ def get_active_session(subject_id: int, db: Session = Depends(get_db)):
     session = db.query(AttendanceSession).filter(
         AttendanceSession.subject_id == subject_id,
         AttendanceSession.is_active == True,
-        AttendanceSession.expires_at > datetime.utcnow()
+        AttendanceSession.expires_at > utc_now_naive()
     ).first()
     if not session:
         return None
@@ -98,7 +99,7 @@ def scan_qr_attendance(
     if not session:
         raise HTTPException(status_code=400, detail="Invalid or expired QR token")
 
-    if session.expires_at and session.expires_at < datetime.utcnow():
+    if session.expires_at and session.expires_at < utc_now_naive():
         session.is_active = False
         db.commit()
         raise HTTPException(status_code=400, detail="QR session has expired")

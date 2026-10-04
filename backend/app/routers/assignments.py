@@ -1,4 +1,5 @@
-from datetime import datetime
+
+from app.core.time import utc_now_naive
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -120,7 +121,7 @@ def submit_assignment(
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    is_late = datetime.utcnow() > assignment.due_date
+    is_late = utc_now_naive() > assignment.due_date
     status_str = "Late" if is_late else "Submitted"
 
     existing_sub = db.query(AssignmentSubmission).filter(
@@ -131,7 +132,7 @@ def submit_assignment(
     if existing_sub:
         existing_sub.submission_text = sub_in.submission_text
         existing_sub.file_url = sub_in.file_url or existing_sub.file_url
-        existing_sub.submitted_at = datetime.utcnow()
+        existing_sub.submitted_at = utc_now_naive()
         existing_sub.status = status_str
         sub_obj = existing_sub
     else:
@@ -141,7 +142,7 @@ def submit_assignment(
             submission_text=sub_in.submission_text,
             file_url=sub_in.file_url,
             status=status_str,
-            submitted_at=datetime.utcnow()
+            submitted_at=utc_now_naive()
         )
         db.add(sub_obj)
 

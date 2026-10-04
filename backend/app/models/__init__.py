@@ -1,4 +1,5 @@
-from datetime import datetime, date, time
+from datetime import date, time
+from app.core.time import utc_now_naive
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Date, Time, Text,
     ForeignKey, Float, Enum
@@ -16,7 +17,7 @@ class User(Base):
     role = Column(String(30), nullable=False, default="student") # student, faculty, hod, admin
     avatar = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     # Relationships
     student_profile = relationship("Student", back_populates="user", uselist=False, cascade="all, delete-orphan")
@@ -124,7 +125,7 @@ class AttendanceSession(Base):
     date = Column(Date, default=date.today)
     qr_token = Column(String(100), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
     expires_at = Column(DateTime, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
@@ -141,7 +142,7 @@ class AttendanceRecord(Base):
     date = Column(Date, default=date.today)
     status = Column(String(20), default="Present") # Present, Absent, Late
     method = Column(String(20), default="Manual") # Manual, QR
-    marked_at = Column(DateTime, default=datetime.utcnow)
+    marked_at = Column(DateTime, default=utc_now_naive)
 
     session = relationship("AttendanceSession", back_populates="records")
     student = relationship("Student", back_populates="attendance_records")
@@ -159,7 +160,7 @@ class Mark(Base):
     semester = Column(Integer, default=5)
     remarks = Column(String(255), nullable=True)
     entered_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     student = relationship("Student", back_populates="marks")
     subject = relationship("Subject", back_populates="marks")
@@ -175,7 +176,7 @@ class Assignment(Base):
     due_date = Column(DateTime, nullable=False)
     file_url = Column(String(255), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     subject = relationship("Subject", back_populates="assignments")
     submissions = relationship("AssignmentSubmission", back_populates="assignment", cascade="all, delete-orphan")
@@ -188,7 +189,7 @@ class AssignmentSubmission(Base):
     student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     submission_text = Column(Text, nullable=True)
     file_url = Column(String(255), nullable=True)
-    submitted_at = Column(DateTime, default=datetime.utcnow)
+    submitted_at = Column(DateTime, default=utc_now_naive)
     status = Column(String(30), default="Submitted") # Submitted, Late, Evaluated
     marks_awarded = Column(Float, nullable=True)
     feedback = Column(Text, nullable=True)
@@ -209,7 +210,7 @@ class Notice(Base):
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
     attachment_url = Column(String(255), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     department = relationship("Department")
     author = relationship("User", foreign_keys=[created_by])
@@ -227,7 +228,7 @@ class Event(Base):
     organizer = Column(String(100), default="CampusConnect Student Council")
     image_url = Column(String(255), nullable=True)
     registration_open = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     registrations = relationship("EventRegistration", back_populates="event", cascade="all, delete-orphan")
 
@@ -237,7 +238,7 @@ class EventRegistration(Base):
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    registered_at = Column(DateTime, default=datetime.utcnow)
+    registered_at = Column(DateTime, default=utc_now_naive)
 
     event = relationship("Event", back_populates="registrations")
     user = relationship("User", back_populates="event_registrations")
@@ -254,7 +255,7 @@ class LeaveRequest(Base):
     status = Column(String(30), default="Pending") # Pending, Approved, Rejected
     reviewer_remarks = Column(Text, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     student = relationship("Student", back_populates="leave_requests")
     reviewer = relationship("User", foreign_keys=[reviewed_by])
@@ -272,7 +273,7 @@ class CertificateRequest(Base):
     qr_code_url = Column(String(255), nullable=True)
     issued_date = Column(Date, nullable=True)
     approved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     student = relationship("Student", back_populates="certificate_requests")
     approver = relationship("User", foreign_keys=[approved_by])
@@ -287,7 +288,7 @@ class Feedback(Base):
     rating = Column(Integer, default=5) # 1 to 5
     comments = Column(Text, nullable=False)
     is_anonymous = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     student = relationship("Student", back_populates="feedbacks")
 
@@ -301,6 +302,6 @@ class Notification(Base):
     category = Column(String(50), default="General") # Attendance, Marks, Assignment, Notice, Leave, Certificate
     link = Column(String(255), nullable=True)
     is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     user = relationship("User", back_populates="notifications")
