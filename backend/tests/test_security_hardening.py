@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import app
+from app.core.database import SessionLocal
+from app.models import User
 
 
 client = TestClient(app)
@@ -21,16 +23,31 @@ def _login(email: str, password: str) -> str:
 
 
 def test_oauth_token_rejects_deactivated_user():
-    response = client.post(
-        "/api/v1/auth/token",
-        data={
-            "username": "hod.cse@campusconnect.edu",
-            "password": "HodPassword@123",
-        },
-    )
+    db = SessionLocal()
+    user = db.query(User).filter(
+        User.email == "hod.cse@campusconnect.edu"
+    ).first()
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Account is deactivated"
+    assert user is not None
+
+    try:
+        user.is_active = False
+        db.commit()
+
+        response = client.post(
+            "/api/v1/auth/token",
+            data={
+                "username": "hod.cse@campusconnect.edu",
+                "password": "HodPassword@123",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Account is deactivated"
+    finally:
+        user.is_active = True
+        db.commit()
+        db.close()
 
 
 def test_malformed_jwt_subject_returns_401():
